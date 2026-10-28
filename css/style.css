@@ -238,8 +238,35 @@ button { font: inherit; color: inherit; }
 
 .q-count { font: 700 24px/1 var(--font); color: var(--muted); letter-spacing: .18em; text-transform: uppercase; }
 .q-count b { color: var(--accent); font-weight: 800; }
-.q-text { margin-top: 40px; font: 500 64px/1.22 var(--font); letter-spacing: -0.015em; text-wrap: pretty; }
-.q-text.long { font-size: 56px; }
+.q-body, .a-body { --k: 1; }
+.q-text { margin-top: calc(36px * var(--k)); font: 500 calc(60px * var(--k))/1.2 var(--font); letter-spacing: -0.015em; text-wrap: pretty; }
+
+/* Варианты ответа */
+.options { list-style: none; margin: calc(44px * var(--k)) 0 0; padding: 0; display: flex; flex-direction: column; gap: calc(14px * var(--k)); }
+.options li {
+  display: flex;
+  align-items: center;
+  gap: calc(26px * var(--k));
+  padding: calc(14px * var(--k)) 26px calc(14px * var(--k)) calc(14px * var(--k));
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 60%, transparent);
+  font: 500 calc(40px * var(--k))/1.2 var(--font);
+  transition: opacity .4s, background .4s, border-color .4s;
+}
+.options .opt-n {
+  flex: none;
+  width: calc(60px * var(--k));
+  height: calc(60px * var(--k));
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  transition: background .4s, color .4s;
+}
 
 /* Номер вопроса до показа самого вопроса */
 .q-cover {
@@ -276,53 +303,31 @@ button { font: inherit; color: inherit; }
 .timer.warn .digits, .timer.done .digits { color: var(--no); }
 .timer.warn .bar { stroke: var(--no); }
 
-/* ─────────────── Ответы ─────────────── */
-.s-answers .head { display: flex; align-items: flex-end; justify-content: space-between; }
-.s-answers h2 { margin: 18px 0 0; font: 800 76px/1 var(--font); letter-spacing: -0.02em; text-transform: uppercase; }
-.s-answers .head .q-count { white-space: nowrap; }
-.alist {
-  --k: 1;
-  list-style: none;
-  margin: 40px 0 0;
-  padding: 0;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
+/* ─────────────── Ответы: по слайду на вопрос ─────────────── */
+.s-answer { flex-direction: row; align-items: center; gap: 80px; }
+.a-main { flex: 1; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: center; }
+.a-q { margin-top: calc(30px * var(--k)); font: 500 calc(50px * var(--k))/1.2 var(--font); letter-spacing: -0.01em; color: var(--fg-2); text-wrap: pretty; }
+.s-answer .options { margin-top: calc(36px * var(--k)); }
+.revealed .options li:not(.correct) { opacity: .3; }
+.revealed .options li.correct { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, transparent); }
+.revealed .options li.correct .opt-n { background: var(--accent); color: var(--bg); }
+.a-reveal { opacity: 0; transform: translateY(12px); transition: opacity .45s, transform .45s; }
+.revealed .a-reveal { opacity: 1; transform: none; }
+.a-answer { margin-top: calc(44px * var(--k)); font: 800 calc(88px * var(--k))/1.05 var(--font); letter-spacing: -0.02em; color: var(--accent); }
+.a-note { margin-top: calc(20px * var(--k)); font: 400 calc(32px * var(--k))/1.35 var(--font); color: var(--muted); }
+.a-pic {
+  flex: none;
+  width: 640px;
+  padding: 16px;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  background: var(--surface);
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity .5s .1s, transform .5s .1s;
 }
-.arow {
-  display: grid;
-  grid-template-columns: calc(80px * var(--k)) minmax(0, 1fr) minmax(0, 1.3fr);
-  gap: calc(40px * var(--k));
-  align-items: start;
-  padding: calc(18px * var(--k)) 0;
-  border-top: 1px solid var(--line);
-  transition: background .3s;
-}
-.arow:last-child { border-bottom: 1px solid var(--line); }
-.arow .an { font: 700 calc(34px * var(--k))/1.25 var(--font); color: var(--muted); font-variant-numeric: tabular-nums; }
-.arow .aq { font: 400 calc(34px * var(--k))/1.25 var(--font); color: var(--fg-2); }
-.arow .aa { position: relative; }
-.arow .aa::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: calc(22px * var(--k));
-  width: 120px;
-  height: 2px;
-  background: var(--line-2);
-  transition: opacity .3s;
-}
-.arow .aa-in { transition: opacity .45s, transform .45s; }
-.arow:not(.on) .aa-in { opacity: 0; transform: translateX(-12px); }
-.arow.on .aa::before { opacity: 0; }
-.arow .ans { font: 700 calc(42px * var(--k))/1.2 var(--font); letter-spacing: -0.005em; }
-.arow .det { display: none; margin-top: calc(10px * var(--k)); font: 400 calc(28px * var(--k))/1.35 var(--font); color: var(--muted); }
-.arow.cur { background: linear-gradient(90deg, color-mix(in srgb, var(--olive) 14%, transparent), transparent 70%); }
-.arow.cur .det { display: block; animation: fade-in .4s ease both; }
-.arow.cur .an { color: var(--accent); }
-.arow.cur .ans { color: var(--accent); }
+.revealed .a-pic { opacity: 1; transform: none; }
+.a-pic img { display: block; width: 100%; max-height: 720px; object-fit: contain; border-radius: 4px; }
 
 /* ─────────────── Конец ─────────────── */
 .s-end { justify-content: center; }

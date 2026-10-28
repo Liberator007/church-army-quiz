@@ -1,7 +1,7 @@
 /*
  * Движок викторины: слайды, навигация, таймер.
- * Порядок: заставка → суть игры → вопросы (номер → вопрос с таймером) → список ответов,
- * которые открываются по одному → конец. Всё переключается кликом мыши или клавишей.
+ * Порядок: заставка → суть игры → вопросы (номер → вопрос с вариантами и таймером) → ответы,
+ * по слайду на вопрос: клик открывает правильный ответ → конец. Всё переключается кликом или клавишей.
  * Содержимое берётся из js/data.js.
  */
 (() => {
@@ -137,22 +137,16 @@
   /* ═══════════════ Сборка списка слайдов ═══════════════ */
   const slides = [];
   const add = (kind, data = {}) => slides.push({ kind, ...data });
-  const visited = new Set(); // какие запасные вопросы показывали
   const spare = Q.spare || [];
-
-  // Что показать в списке ответов
-  const answerItems = () => [
-    ...Q.questions.map((q, i) => ({ n: i + 1, prompt: q.short || q.text, answer: q.answer, detail: q.note })),
-    ...spare.map((q, i) => ({ prompt: `${q.short || q.text} (запасной)`, answer: q.answer, detail: q.note, key: `spare-${i}` }))
-      .filter((a) => visited.has(a.key))
-      .map((a, i) => ({ ...a, n: Q.questions.length + i + 1 })),
-  ];
 
   add("title");
   add("intro");
   Q.questions.forEach((q, i) => add("q", { q, i, total: Q.questions.length }));
   spare.forEach((q, i) => add("q", { q, i, spare: true, hidden: true, key: `spare-${i}` }));
-  add("answers");
+  add("answersIntro");
+  Q.questions.forEach((q, i) => add("answer", { q, i, total: Q.questions.length }));
+  // ответ на запасной вопрос появляется, только если сам вопрос показывали
+  spare.forEach((q, i) => add("answer", { q, i, spare: true, hidden: true, key: `spare-${i}` }));
   add("end");
 
   function slideLabel(s) {
@@ -161,7 +155,8 @@
       case "title": return "Заставка";
       case "intro": return "Суть игры";
       case "q": return (s.spare ? "Запасной: " : `${s.i + 1}. `) + cut(s.q.short || s.q.text);
-      case "answers": return "Ответы";
+      case "answersIntro": return "Ответы";
+      case "answer": return s.spare ? "Ответ на запасной" : `Ответ ${s.i + 1}`;
       case "end": return "Конец";
       default: return s.kind;
     }
@@ -221,6 +216,26 @@
     };
   }
 
+  // Варианты ответа: номер + текст
+  const optionsHtml = (q) => (q.options
+    ? `<ol class="options">${q.options.map((o, k) => `<li><span class="opt-n">${k + 1}</span><span>${esc(o)}</span></li>`).join("")}</ol>`
+    : "");
+
+  // Уменьшаем шрифт (переменная --k), если содержимое не помещается в свой блок
+  function fitText(box, content) {
+    const run = () => {
+      if (!box.isConnected) return;
+      let k = 1;
+      content.style.setProperty("--k", k);
+      while (content.offsetHeight > box.clientHeight + 1 && k > 0.6) {
+        k -= 0.04;
+        content.style.setProperty("--k", k.toFixed(2));
+      }
+    };
+    requestAnimationFrame(run);
+    document.fonts && document.fonts.ready.then(() => requestAnimationFrame(run));
+  }
+
   /* ═══════════════ Отрисовка слайдов ═══════════════ */
   const RENDER = {
     title(s, n) {
@@ -246,91 +261,55 @@
     },
 
     q(s, n) {
-      if (s.spare) visited.add(s.key);
-      const long = s.q.text.length > 150;
+      // показали запасной вопрос — его ответ тоже попадёт в разбор
+      if (s.spare) slides.forEach((x) => { if (x.kind === "answer" && x.key === s.key) x.hidden = false; });
       const what = s.spare ? "Запасной вопрос" : "Вопрос";
-      return questionSlide(s, n, {
+      const q = questionSlide(s, n, {
         cover: `<div class="what">${what}</div><div class="big">${pad(s.i + 1)}${s.spare ? "" : `<small>/ ${pad(s.total)}</small>`}</div>`,
         body: `<div class="q-count">${what} <b>${s.i + 1}</b>${s.spare ? "" : ` из ${s.total}`}</div>
-               <div class="q-text ${long ? "long" : ""}">${esc(s.q.text)}</div>`,
+               <div class="q-text">${esc(s.q.text)}</div>
+               ${optionsHtml(s.q)}`,
         phases: Q.phases,
         steps: Q.phases.length > 1 ? Q.phases.map((p) => [p.label, fmt(p.seconds)]) : null,
-        endText: "Стоп! Фото — ведущему",
       });
+      fitText(n.querySelector(".q-main"), n.querySelector(".q-body"));
+      return q;
     },
 
-    /* ── Ответы: открываются по одному ── */
-    answers(s, n) {
-      const items = answerItems();
-      n.classList.add("s-answers");
+    answersIntro(s, n) {
+      n.classList.add("s-intro");
       n.innerHTML = `
-        <div class="head">
-          <div>
-            <div class="label">Разбор</div>
-            <h2>Ответы</h2>
+        <div class="label appear">Разбор</div>
+        <h1 class="appear" style="--i:1">Ответы</h1>
+        <p class="about appear" style="--i:2">Сверяем ответы по порядку. Считаем, сколько правильных.</p>`;
+    },
+
+    /* ── Ответ: сначала вопрос с вариантами, по клику — правильный ответ (и картинка) ── */
+    answer(s, n) {
+      const q = s.q;
+      n.classList.add("s-answer");
+      const plain = !q.options;
+      const reveal = [
+        plain ? `<div class="a-answer">${esc(q.answer)}</div>` : "",
+        q.note ? `<div class="a-note">${esc(q.note)}</div>` : "",
+      ].join("");
+      n.innerHTML = `
+        <div class="a-main">
+          <div class="a-body">
+            <div class="q-count">${s.spare ? "Запасной вопрос" : `Ответ <b>${s.i + 1}</b> из ${s.total}`}</div>
+            <div class="a-q">${esc(q.text)}</div>
+            ${optionsHtml(q)}
+            ${reveal ? `<div class="a-reveal">${reveal}</div>` : ""}
           </div>
-          <div class="q-count"><b class="shown">0</b> из ${items.length}</div>
         </div>
-        <ol class="alist">
-          ${items.map((a) => `
-            <li class="arow">
-              <div class="an">${pad(a.n)}</div>
-              <div class="aq"><span>${esc(a.prompt)}</span></div>
-              <div class="aa"><div class="aa-in">
-                <div class="ans">${esc(a.answer)}</div>
-                ${a.detail ? `<div class="det">${esc(a.detail)}</div>` : ""}
-              </div></div>
-            </li>`).join("")}
-        </ol>`;
-
-      const rows = [...n.querySelectorAll(".arow")];
-      const shownEl = n.querySelector(".shown");
-      let shown = 0;
-      const update = () => {
-        rows.forEach((row, k) => {
-          row.classList.toggle("on", k < shown);
-          row.classList.toggle("cur", k === shown - 1);
-        });
-        shownEl.textContent = shown;
-      };
-      // Уменьшаем шрифт, если список не помещается. Пояснение видно только у последнего
-      // открытого ответа, поэтому проверяем худший случай — каждую строку раскрытой.
-      const fit = () => {
-        const list = n.querySelector(".alist");
-        if (!list.isConnected) return;
-        const tallest = () => {
-          let max = 0;
-          rows.forEach((row) => {
-            rows.forEach((x) => x.classList.remove("cur"));
-            row.classList.add("cur");
-            max = Math.max(max, list.scrollHeight);
-          });
-          update();
-          return max;
-        };
-        let k = 1;
-        list.style.setProperty("--k", k);
-        while (tallest() > list.clientHeight + 1 && k > 0.5) {
-          k -= 0.04;
-          list.style.setProperty("--k", k.toFixed(2));
-        }
-      };
-      requestAnimationFrame(fit);
-      document.fonts && document.fonts.ready.then(() => requestAnimationFrame(fit));
-
+        ${q.image ? `<div class="a-pic"><img src="${esc(q.image)}" alt=""></div>` : ""}`;
+      if (q.options && q.correct) n.querySelector(`.options li:nth-child(${q.correct})`).classList.add("correct");
+      fitText(n.querySelector(".a-main"), n.querySelector(".a-body"));
+      let shown = false;
+      const show = (v) => { shown = v; n.classList.toggle("revealed", v); };
       return {
-        next: () => {
-          if (shown >= rows.length) return false;
-          shown++;
-          update();
-          return true;
-        },
-        prev: () => {
-          if (shown === 0) return false;
-          shown--;
-          update();
-          return true;
-        },
+        next: () => { if (shown) return false; show(true); return true; },
+        prev: () => { if (!shown) return false; show(false); return true; },
       };
     },
 
@@ -347,14 +326,14 @@
   let cur = -1;
   let ctrl = {};
   const hudPos = document.querySelector("#hud .pos");
-  // Деления прогресса: по одному на вопрос и одно на ответы
-  const segs = slides.map((x, i) => [x, i]).filter(([x]) => !x.hidden && (x.kind === "q" || x.kind === "answers"));
+  // Деления прогресса: по одному на каждый вопрос и каждый ответ
+  const segs = slides.map((x, i) => [x, i]).filter(([x]) => !x.hidden && (x.kind === "q" || x.kind === "answer"));
 
   function updateChrome(s) {
     const bare = s.kind === "title" || s.kind === "end";
     chrome.classList.toggle("hidden", bare);
     progress.classList.toggle("hidden", bare);
-    chrome.innerHTML = `<span class="round">${esc(Q.format)}</span><span class="mark">${esc(Q.title)}</span>`;
+    chrome.innerHTML = `<span class="round">${esc(Q.format)}</span><span></span>`;
     const at = segs.filter(([, i]) => i <= cur).length - 1;
     progress.innerHTML = segs.map((_, k) => `<div class="seg ${k < at ? "past" : ""} ${k === at ? "cur" : ""}"></div>`).join("");
     hudPos.textContent = `${cur + 1}/${slides.length}`;

@@ -1,6 +1,6 @@
 /*
  * Движок викторины: слайды, навигация, таймер.
- * Порядок: заставка → суть игры → вопросы (номер → вопрос с вариантами и таймером) → ответы,
+ * Порядок: заставка → вопросы (номер → вопрос с вариантами и таймером) → ответы,
  * по слайду на вопрос: клик открывает правильный ответ → конец. Всё переключается кликом или клавишей.
  * Содержимое берётся из js/data.js.
  */
@@ -26,7 +26,6 @@
   };
   const fmt = (s) => (s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : String(s));
   const pad = (n) => String(n).padStart(2, "0");
-  const bold = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
 
   // Своя приставка: у файлов, открытых двойным кликом, localStorage общий с другими викторинами
   const store = {
@@ -140,7 +139,6 @@
   const spare = Q.spare || [];
 
   add("title");
-  add("intro");
   Q.questions.forEach((q, i) => add("q", { q, i, total: Q.questions.length }));
   spare.forEach((q, i) => add("q", { q, i, spare: true, hidden: true, key: `spare-${i}` }));
   add("answersIntro");
@@ -153,7 +151,6 @@
     const cut = (t, n = 36) => (t.length > n ? t.slice(0, n - 1) + "…" : t);
     switch (s.kind) {
       case "title": return "Заставка";
-      case "intro": return "Суть игры";
       case "q": return (s.spare ? "Запасной: " : `${s.i + 1}. `) + cut(s.q.short || s.q.text);
       case "answersIntro": return "Ответы";
       case "answer": return s.spare ? "Ответ на запасной" : `Ответ ${s.i + 1}`;
@@ -250,14 +247,6 @@
           <div class="appear" style="--i:3"><span>Вопросов</span>${count}</div>
           <div class="appear" style="--i:4"><span>Время</span>${fmt(secs)}${secs < 60 ? " сек" : ""} на вопрос</div>
         </div>`;
-    },
-
-    intro(s, n) {
-      n.classList.add("s-intro");
-      n.innerHTML = `
-        <div class="label appear">Суть игры</div>
-        <h1 class="appear" style="--i:1">${esc(Q.format)}</h1>
-        <p class="about appear" style="--i:2">${bold(Q.about)}</p>`;
     },
 
     q(s, n) {
